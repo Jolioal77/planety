@@ -1015,7 +1015,7 @@ try{
 }
 // This function asks the ESP32 for sensor data every 2 seconds
 setInterval(function() {
-    fetch('http://192.168.1.XX/data')
+    fetch('http://192.168.178.98/data')
     .then(response => response.json())
     .then(data => {
         // Mapping the ESP32 JSON to your website's UI elements
