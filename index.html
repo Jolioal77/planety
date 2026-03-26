@@ -922,7 +922,7 @@ function updateUI(tObj, lObj, sObj, hObj) {
     const s = norm(sObj, '%');
     const h = hObj ? norm(hObj, '%') : null;
 
-    // Update Main Numeric Displays
+    // Update numbers
     if (tempVal) tempVal.textContent = t.value;
     if (lightVal) lightVal.textContent = l.value;
     if (soilVal) soilVal.textContent = s.value;
@@ -975,16 +975,9 @@ function updateUI(tObj, lObj, sObj, hObj) {
         }
     }
 
-    // Store reading for charts and auto-save
-    lastReading = { 
-        t: t.value, tUnit: t.unit, 
-        l: l.value, lUnit: l.unit, 
-        s: s.value, sUnit: s.unit, 
-        h: (h ? h.value : null), hUnit: (h ? h.unit : ''), 
-        ts: new Date().toISOString() 
-    };
-
-    if (typeof addPoint === 'function') addPoint(t, l, s, h);
+    // IMPORTANT: Remove the "addPoint(t,l,s,h)" line from here!
+    
+    lastReading = { t: t.value, tUnit: t.unit, l: l.value, lUnit: l.unit, s: s.value, sUnit: s.unit, h: (h? h.value : null), hUnit: (h? h.unit : ''), ts: new Date().toISOString() };
     attemptAutoSaveForToday();
 }
 
@@ -1064,15 +1057,15 @@ try{
 /* =========================
    WIFI LIVE DATA FETCH
 ========================= */
-let chartUpdateCounter = 0;
+let graphCounter = 0; // This keeps track of time
 
 setInterval(function() {
-  fetch('http://192.168.11.98/data') // Use your actual IP
+  fetch('http://192.168.11.98/data') 
     .then(response => response.json())
     .then(data => {
       setStatus('Live (WiFi)', true);
       
-      // 1. Update the Numbers and Advice IMMEDIATELY (every 2 seconds)
+      // Update UI (Numbers + Advice) every 2 seconds
       updateUI(
         { value: data.t, unit: '°C' },
         { value: data.l, unit: 'lx' },
@@ -1080,22 +1073,17 @@ setInterval(function() {
         (data.h !== undefined) ? { value: data.h, unit: '%' } : null
       );
 
-      // 2. Only add to the Graph every 30 seconds (15 cycles of 2s)
-      chartUpdateCounter++;
-      if (chartUpdateCounter >= 15) { 
-          // We call addPoint manually here instead of inside updateUI
-          // Make sure to remove 'addPoint' from inside your updateUI function first!
-          addPoint(data.t, data.l, data.s, data.h);
-          chartUpdateCounter = 0; // Reset
+      // ONLY add to graph every 30 seconds
+      graphCounter++;
+      if (graphCounter >= 15) {
+        // Map the numbers for the chart
+        addPoint(data.t, data.l, data.s, data.h);
+        graphCounter = 0; // Reset the clock
       }
 
-      // Show Pest Status
-      const pestBox = document.getElementById('pestStatusContainer');
-      if (pestBox) pestBox.style.display = 'block';
+      document.getElementById('pestStatusContainer').style.display = 'block';
     })
-    .catch(err => {
-      setStatus('Searching...', false);
-    });
+    .catch(err => setStatus('Searching...', false));
 }, 2000);
 </script>
 </body>
