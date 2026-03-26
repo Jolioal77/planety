@@ -266,6 +266,12 @@
             </div>
           </div>
         </section>
+
+        <div id="pestStatusContainer" style="display: none; margin: 20px auto; padding: 15px; max-width: 90%; background: rgba(46, 204, 113, 0.1); border: 2px solid #2ecc71; border-radius: 15px; transition: all 0.3s ease;">
+            <p style="margin: 0; color: #2ecc71; font-weight: bold;">
+                🛡️ <span id="pestText">Scanning...</span>
+            </p>
+        </div>
       </main>
 
       <footer>© 2026 PLANETY</footer>
@@ -1057,15 +1063,27 @@ try{
 /* =========================
    WIFI LIVE DATA FETCH
 ========================= */
-let graphCounter = 0; // This keeps track of time
+let graphCounter = 0; 
 
 setInterval(function() {
-  fetch('http://192.168.11.98/data') 
-    .then(response => response.json())
+  fetch('http://192.168.11.98/data') // Use your actual ESP32 IP
+    .then(response => {
+      if (!response.ok) throw new Error('Offline');
+      return response.json();
+    })
     .then(data => {
+      // 1. Set the main connection chip to Green
       setStatus('Live (WiFi)', true);
-      
-      // Update UI (Numbers + Advice) every 2 seconds
+
+      // 2. FORCE SHOW PEST MESSAGE (This runs every successful fetch)
+      const pestBox = document.getElementById('pestStatusContainer');
+      const pestText = document.getElementById('pestText');
+      if (pestBox) {
+          pestBox.style.display = 'block'; 
+          pestText.textContent = "System Check: You do not have any pests in your plant!";
+      }
+
+      // 3. Update the Numbers/Advice
       updateUI(
         { value: data.t, unit: '°C' },
         { value: data.l, unit: 'lx' },
@@ -1073,17 +1091,23 @@ setInterval(function() {
         (data.h !== undefined) ? { value: data.h, unit: '%' } : null
       );
 
-      // ONLY add to graph every 30 seconds
+      // 4. Graphing Logic (Every 30 seconds)
       graphCounter++;
       if (graphCounter >= 15) {
-        // Map the numbers for the chart
         addPoint(data.t, data.l, data.s, data.h);
-        graphCounter = 0; // Reset the clock
+        graphCounter = 0; 
       }
-
-      document.getElementById('pestStatusContainer').style.display = 'block';
     })
-    .catch(err => setStatus('Searching...', false));
+    .catch(err => {
+      // IF CONNECTION DROPS:
+      setStatus('Searching...', false);
+      
+      // Optional: Hide the pest message if the device disconnects
+      const pestBox = document.getElementById('pestStatusContainer');
+      if (pestBox) pestBox.style.display = 'none';
+      
+      console.log("Planety Link Lost: Reconnecting...");
+    });
 }, 2000);
 </script>
 </body>
