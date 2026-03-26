@@ -200,12 +200,7 @@
             <hr />
             <h3 class="mt-8">Suggestions</h3>
             <div id="suggestions"></div>
-            </div>
-            <div id="pestStatusContainer" style="display: none; margin-top: 20px; padding: 15px; background: rgba(46, 204, 113, 0.1); border: 1px solid #2ecc71; border-radius: 12px; text-align: center;">
-            <p style="margin: 0; color: #2ecc71; font-weight: 600; font-size: 0.95rem;">
-            🛡️ <span id="pestText">Scanning for pests...</span>
-            </p>
-</div>
+          </div>
         </section>
 
     <!-- Progress -->
@@ -848,7 +843,7 @@ const aiResponses={
   "floweringplants": "Provide bright light 🌞, regular watering 💦, and balanced fertilizer 🌱 for flowers 🌸.",
 
   // ===== Fallback =====
-  "unknown": "Sorry 🤔, I didn't understand that. I am still learning!"
+  "unknown": "Sorry 🤔, I didn't understand that. Try asking about watering 💦, light 🌞, pests 🐛, or plant care tips 🌱."
   
 };
 document.addEventListener('DOMContentLoaded', function() {
@@ -1069,40 +1064,37 @@ try{
 /* =========================
    WIFI LIVE DATA FETCH
 ========================= */
+let chartUpdateCounter = 0;
+
 setInterval(function() {
-  fetch('http://192.168.11.98/data') // Remember to use your actual IP here!
-    .then(response => {
-      if (!response.ok) throw new Error('Network response was not ok');
-      return response.json();
-    })
+  fetch('http://192.168.11.98/data') // Use your actual IP
+    .then(response => response.json())
     .then(data => {
       setStatus('Live (WiFi)', true);
-
-      // --- NEW: SHOW PEST STATUS ---
-      const pestBox = document.getElementById('pestStatusContainer');
-      const pestText = document.getElementById('pestText');
-      if (pestBox) {
-          pestBox.style.display = 'block'; // Make the box visible
-          pestText.textContent = "System Check: You do not have any pests in your plant!";
-      }
-
-      // Route data to UI
+      
+      // 1. Update the Numbers and Advice IMMEDIATELY (every 2 seconds)
       updateUI(
         { value: data.t, unit: '°C' },
         { value: data.l, unit: 'lx' },
         { value: data.s, unit: '%' },
         (data.h !== undefined) ? { value: data.h, unit: '%' } : null
       );
+
+      // 2. Only add to the Graph every 30 seconds (15 cycles of 2s)
+      chartUpdateCounter++;
+      if (chartUpdateCounter >= 15) { 
+          // We call addPoint manually here instead of inside updateUI
+          // Make sure to remove 'addPoint' from inside your updateUI function first!
+          addPoint(data.t, data.l, data.s, data.h);
+          chartUpdateCounter = 0; // Reset
+      }
+
+      // Show Pest Status
+      const pestBox = document.getElementById('pestStatusContainer');
+      if (pestBox) pestBox.style.display = 'block';
     })
     .catch(err => {
-      // If connection is lost, hide the pest status
-      const pestBox = document.getElementById('pestStatusContainer');
-      if (pestBox) pestBox.style.display = 'none';
-      
-      console.log("Waiting for ESP32 WiFi...");
-      if(!bleConnected && !serialPort) {
-        setStatus('Searching for ESP32...', false);
-      }
+      setStatus('Searching...', false);
     });
 }, 2000);
 </script>
