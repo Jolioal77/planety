@@ -1084,7 +1084,7 @@ try{
 let graphCounter = 0;
 
 setInterval(function() {
-  fetch('http://192.168.X.X/data') // Your ESP32 IP
+  fetch('http://192.168.11.98/data') // Your ESP32 IP
     .then(response => {
       if (!response.ok) throw new Error('Offline');
       return response.json();
