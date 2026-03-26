@@ -169,19 +169,19 @@
             <div class="card">
                 <h3>Temperature</h3>
                 <div id="tempVal">--</div>
-                <div id="tempAdvice" style="font-size: 0.85rem; font-weight: 500; margin-top: 8px;">Waiting for data...</div>
+                <div id="tempAdvice" style="display: none; min-height: 20px; font-size: 0.85rem; margin-top: 8px;"></div>
             </div>
 
             <div class="card">
                 <h3>Light Intensity</h3>
                 <div id="lightVal">--</div>
-                <div id="lightAdvice" style="font-size: 0.85rem; font-weight: 500; margin-top: 8px;">Waiting for data...</div>
+                <div id="lightAdvice" style="display: none; min-height: 20px; font-size: 0.85rem; margin-top: 8px;"></div>
             </div>
 
             <div class="card">
                 <h3>Soil Moisture</h3>
                 <div id="soilVal">--</div>
-                <div id="soilAdvice" style="font-size: 0.85rem; font-weight: 500; margin-top: 8px;">Waiting for data...</div>
+                <div id="soilAdvice" style="display: none; min-height: 20px; font-size: 0.85rem; margin-top: 8px;"></div>
             </div>
           </div>
 
@@ -916,7 +916,22 @@ if(bleConnectBtn){
 /* =========================
    SAVING / PERSISTENCE / THRESHOLDS
 ========================= */
-function updateUI(tObj, lObj, sObj, hObj) {
+function updateUI(tObj, lObj, sObj, hObj, forceReset = false) {
+    // If we are forcing a reset (Disconnected state)
+    if (forceReset) {
+        if (tempVal) tempVal.textContent = "--";
+        if (lightVal) lightVal.textContent = "--";
+        if (soilVal) soilVal.textContent = "--";
+        if (humidVal) humidVal.textContent = "--";
+        
+        // Hide all advice strings
+        if (document.getElementById('tempAdvice')) document.getElementById('tempAdvice').style.display = 'none';
+        if (document.getElementById('lightAdvice')) document.getElementById('lightAdvice').style.display = 'none';
+        if (document.getElementById('soilAdvice')) document.getElementById('soilAdvice').style.display = 'none';
+        return; // Stop here
+    }
+
+    // NORMAL DATA FLOW (Connected)
     const norm = (x, defaultUnit) => {
         if (x === undefined || x === null) return { value: null, unit: '' };
         if (typeof x === 'object') return { value: Number(x.value), unit: x.unit || defaultUnit };
@@ -928,14 +943,17 @@ function updateUI(tObj, lObj, sObj, hObj) {
     const s = norm(sObj, '%');
     const h = hObj ? norm(hObj, '%') : null;
 
-    // Update numbers
+    // Update Main Numeric Displays
     if (tempVal) tempVal.textContent = t.value;
     if (lightVal) lightVal.textContent = l.value;
     if (soilVal) soilVal.textContent = s.value;
     if (h && humidVal) humidVal.textContent = h.value;
 
-    // --- PLANT CARE ADVICE LOGIC ---
-    
+    // Show and Update Advice
+    const adviceIDs = ['tempAdvice', 'lightAdvice', 'soilAdvice'];
+    adviceIDs.forEach(id => { if(document.getElementById(id)) document.getElementById(id).style.display = 'block'; });
+
+    // --- THRESHOLD LOGIC (Keep your existing IF/ELSE blocks here) ---
     // 1. Temperature Advice (18-28°C)
     const tAdv = document.getElementById('tempAdvice');
     if (tAdv) {
@@ -1063,50 +1081,45 @@ try{
 /* =========================
    WIFI LIVE DATA FETCH
 ========================= */
-let graphCounter = 0; 
+let graphCounter = 0;
 
 setInterval(function() {
-  fetch('http://192.168.11.98/data') // Use your actual ESP32 IP
+  fetch('http://192.168.X.X/data') // Your ESP32 IP
     .then(response => {
       if (!response.ok) throw new Error('Offline');
       return response.json();
     })
     .then(data => {
-      // 1. Set the main connection chip to Green
       setStatus('Live (WiFi)', true);
-
-      // 2. FORCE SHOW PEST MESSAGE (This runs every successful fetch)
-      const pestBox = document.getElementById('pestStatusContainer');
-      const pestText = document.getElementById('pestText');
-      if (pestBox) {
-          pestBox.style.display = 'block'; 
-          pestText.textContent = "System Check: You do not have any pests in your plant!";
-      }
-
-      // 3. Update the Numbers/Advice
+      
+      // Update UI with real data (false = do not reset)
       updateUI(
         { value: data.t, unit: '°C' },
         { value: data.l, unit: 'lx' },
         { value: data.s, unit: '%' },
-        (data.h !== undefined) ? { value: data.h, unit: '%' } : null
+        (data.h !== undefined) ? { value: data.h, unit: '%' } : null,
+        false 
       );
 
-      // 4. Graphing Logic (Every 30 seconds)
+      // Show Pest Status
+      const pestBox = document.getElementById('pestStatusContainer');
+      if (pestBox) pestBox.style.display = 'block';
+
+      // Graphing Logic (Every 30 seconds)
       graphCounter++;
       if (graphCounter >= 15) {
         addPoint(data.t, data.l, data.s, data.h);
-        graphCounter = 0; 
+        graphCounter = 0;
       }
     })
     .catch(err => {
-      // IF CONNECTION DROPS:
       setStatus('Searching...', false);
       
-      // Optional: Hide the pest message if the device disconnects
+      // TRIGGER THE RESET: Show "--" and hide suggestions
+      updateUI(null, null, null, null, true);
+      
       const pestBox = document.getElementById('pestStatusContainer');
       if (pestBox) pestBox.style.display = 'none';
-      
-      console.log("Planety Link Lost: Reconnecting...");
     });
 }, 2000);
 </script>
