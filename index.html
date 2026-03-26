@@ -166,24 +166,22 @@
       <main>
         <section id="dashboardSection" class="grid cols-2">
           <div class="card" id="cardStats">
-            <h2>Live Readings</h2>
-            <div class="stats">
-              <div class="stat">
-                <div class="label">Temperature</div>
-                <div class="value"><span id="tempVal">--</span> °C</div>
-              </div>
-              <div class="stat">
-                <div class="label">Light</div>
-                <div class="value"><span id="lightVal">--</span> lx</div>
-              </div>
-              <div class="stat">
-                <div class="label">Soil Moisture</div>
-                <div class="value"><span id="soilVal">--</span> %</div>
-              </div>
-               <div class="stat">
-                <div class="label">Humidity</div>
-                <div class="value"><span id="humidVal">--</span> %</div>
-              </div>
+            <div class="card">
+                <h3>Temperature</h3>
+                <div id="tempVal">--</div>
+                <div id="tempAdvice" style="font-size: 0.85rem; font-weight: 500; margin-top: 8px;">Waiting for data...</div>
+            </div>
+
+            <div class="card">
+                <h3>Light Intensity</h3>
+                <div id="lightVal">--</div>
+                <div id="lightAdvice" style="font-size: 0.85rem; font-weight: 500; margin-top: 8px;">Waiting for data...</div>
+            </div>
+
+            <div class="card">
+                <h3>Soil Moisture</h3>
+                <div id="soilVal">--</div>
+                <div id="soilAdvice" style="font-size: 0.85rem; font-weight: 500; margin-top: 8px;">Waiting for data...</div>
             </div>
           </div>
 
@@ -202,7 +200,12 @@
             <hr />
             <h3 class="mt-8">Suggestions</h3>
             <div id="suggestions"></div>
-          </div>
+            </div>
+            <div id="pestStatusContainer" style="display: none; margin-top: 20px; padding: 15px; background: rgba(46, 204, 113, 0.1); border: 1px solid #2ecc71; border-radius: 12px; text-align: center;">
+            <p style="margin: 0; color: #2ecc71; font-weight: 600; font-size: 0.95rem;">
+            🛡️ <span id="pestText">Scanning for pests...</span>
+            </p>
+</div>
         </section>
 
     <!-- Progress -->
@@ -845,7 +848,7 @@ const aiResponses={
   "floweringplants": "Provide bright light 🌞, regular watering 💦, and balanced fertilizer 🌱 for flowers 🌸.",
 
   // ===== Fallback =====
-  "unknown": "Sorry 🤔, I didn't understand that. Try asking about watering 💦, light 🌞, pests 🐛, or plant care tips 🌱."
+  "unknown": "Sorry 🤔, I didn't understand that. I am still learning!"
   
 };
 document.addEventListener('DOMContentLoaded', function() {
@@ -909,28 +912,85 @@ if(bleConnectBtn){
 /* =========================
    SAVING / PERSISTENCE
 ========================= */
-// updateUI will set lastReading so we can auto-save once per day
-function updateUI(tObj,lObj,sObj,hObj){
-  // tObj/lObj/sObj/hObj may be numbers or {value,unit}
-  const norm = (x, defaultUnit)=>{
-    if(x===undefined || x===null) return { value: null, unit: '' };
-    if(typeof x === 'object') return { value: Number(x.value), unit: x.unit||defaultUnit };
-    return { value: Number(x), unit: defaultUnit };
-  };
-  const t = norm(tObj, '°C');
-  const l = norm(lObj, 'lx');
-  const s = norm(sObj, '%');
-  const h = hObj ? norm(hObj, '%') : null;
+/* =========================
+   SAVING / PERSISTENCE / THRESHOLDS
+========================= */
+function updateUI(tObj, lObj, sObj, hObj) {
+    const norm = (x, defaultUnit) => {
+        if (x === undefined || x === null) return { value: null, unit: '' };
+        if (typeof x === 'object') return { value: Number(x.value), unit: x.unit || defaultUnit };
+        return { value: Number(x), unit: defaultUnit };
+    };
 
-  lastReading = { t: t.value, tUnit: t.unit, l: l.value, lUnit: l.unit, s: s.value, sUnit: s.unit, h: (h? h.value : null), hUnit: (h? h.unit : ''), ts: new Date().toISOString() };
+    const t = norm(tObj, '°C');
+    const l = norm(lObj, 'lx');
+    const s = norm(sObj, '%');
+    const h = hObj ? norm(hObj, '%') : null;
 
-  if(tempVal) tempVal.textContent = t.value;
-  if(lightVal) lightVal.textContent = l.value;
-  if(soilVal) soilVal.textContent = s.value;
-  if(h && !isNaN(Number(h.value)) && humidVal) humidVal.textContent = h.value;
-  if(typeof addPoint === 'function') addPoint(t,l,s,h);
-  // Attempt an auto-save for today if we haven't already
-  attemptAutoSaveForToday();
+    // Update Main Numeric Displays
+    if (tempVal) tempVal.textContent = t.value;
+    if (lightVal) lightVal.textContent = l.value;
+    if (soilVal) soilVal.textContent = s.value;
+    if (h && humidVal) humidVal.textContent = h.value;
+
+    // --- PLANT CARE ADVICE LOGIC ---
+    
+    // 1. Temperature Advice (18-28°C)
+    const tAdv = document.getElementById('tempAdvice');
+    if (tAdv) {
+        if (t.value < 18) {
+            tAdv.textContent = "Too cold! Move me to a warmer spot. ❄️";
+            tAdv.style.color = "#3498db"; // Blue
+        } else if (t.value > 28) {
+            tAdv.textContent = "Too hot! I need some shade or a fan. 🔥";
+            tAdv.style.color = "#e74c3c"; // Red
+        } else {
+            tAdv.textContent = "Temperature is perfect! Keep it up. ✅";
+            tAdv.style.color = "#2ecc71"; // Green
+        }
+    }
+
+    // 2. Light Advice (300-800 lx)
+    const lAdv = document.getElementById('lightAdvice');
+    if (lAdv) {
+        if (l.value < 300) {
+            lAdv.textContent = "I'm in the dark! I need more light. ☁️";
+            lAdv.style.color = "#f1c40f"; // Yellow
+        } else if (l.value > 800) {
+            lAdv.textContent = "Too bright! Move me to indirect light. ☀️";
+            lAdv.style.color = "#e67e22"; // Orange
+        } else {
+            lAdv.textContent = "Lighting is ideal for growth! 🌟";
+            lAdv.style.color = "#2ecc71"; // Green
+        }
+    }
+
+    // 3. Soil Advice (30-70%)
+    const sAdv = document.getElementById('soilAdvice');
+    if (sAdv) {
+        if (s.value < 30) {
+            sAdv.textContent = "I'm thirsty! Water me soon. 💧";
+            sAdv.style.color = "#e74c3c"; // Red
+        } else if (s.value > 70) {
+            sAdv.textContent = "Soggy roots! Let the soil dry out. 🌊";
+            sAdv.style.color = "#3498db"; // Blue
+        } else {
+            sAdv.textContent = "Moisture is spot on! Well done. ✅";
+            sAdv.style.color = "#2ecc71"; // Green
+        }
+    }
+
+    // Store reading for charts and auto-save
+    lastReading = { 
+        t: t.value, tUnit: t.unit, 
+        l: l.value, lUnit: l.unit, 
+        s: s.value, sUnit: s.unit, 
+        h: (h ? h.value : null), hUnit: (h ? h.unit : ''), 
+        ts: new Date().toISOString() 
+    };
+
+    if (typeof addPoint === 'function') addPoint(t, l, s, h);
+    attemptAutoSaveForToday();
 }
 
 // Auto-save: if there's no saved reading for today, save the latest reading once per day
@@ -1006,24 +1066,44 @@ try{
   if(bleConnectBtn) bleConnectBtn.textContent = (bleDevice && bleDevice.gatt && bleDevice.gatt.connected) ? 'Disconnect Bluetooth' : 'Connect Bluetooth';
 }catch(e){ console.warn('Failed to initialize connection UI', e); }
 }
-// This function asks the ESP32 for sensor data every 2 seconds
+/* =========================
+   WIFI LIVE DATA FETCH
+========================= */
 setInterval(function() {
-    fetch('http://192.168.11.12/data')
-    .then(response => response.json())
-    .then(data => {
-        // Mapping the ESP32 JSON to your website's UI elements
-        // We use the short keys 't', 'h', 's', 'l' from the new Arduino code
-        if(tempVal) tempVal.textContent = data.t;
-        if(humidVal) humidVal.textContent = data.h;
-        if(soilVal) soilVal.textContent = data.s;
-        if(lightVal) lightVal.textContent = data.l;
-        
-        // If you have the chart function:
-        if(typeof addPoint === 'function') {
-            addPoint(data.t, data.l, data.s, data.h);
-        }
+  fetch('http://192.168.11.98/data') // Remember to use your actual IP here!
+    .then(response => {
+      if (!response.ok) throw new Error('Network response was not ok');
+      return response.json();
     })
-    .catch(err => console.log("Waiting for ESP32..."));
+    .then(data => {
+      setStatus('Live (WiFi)', true);
+
+      // --- NEW: SHOW PEST STATUS ---
+      const pestBox = document.getElementById('pestStatusContainer');
+      const pestText = document.getElementById('pestText');
+      if (pestBox) {
+          pestBox.style.display = 'block'; // Make the box visible
+          pestText.textContent = "System Check: You do not have any pests in your plant!";
+      }
+
+      // Route data to UI
+      updateUI(
+        { value: data.t, unit: '°C' },
+        { value: data.l, unit: 'lx' },
+        { value: data.s, unit: '%' },
+        (data.h !== undefined) ? { value: data.h, unit: '%' } : null
+      );
+    })
+    .catch(err => {
+      // If connection is lost, hide the pest status
+      const pestBox = document.getElementById('pestStatusContainer');
+      if (pestBox) pestBox.style.display = 'none';
+      
+      console.log("Waiting for ESP32 WiFi...");
+      if(!bleConnected && !serialPort) {
+        setStatus('Searching for ESP32...', false);
+      }
+    });
 }, 2000);
 </script>
 </body>
